@@ -29,9 +29,7 @@ interface StateChangedData {
    */
   'ha_state'?: HaCoverState;
   /**
-   * Cover tilt (0.0 = slats closed, 1.0 = slats open). Cover only.
-   * Continuous while tilt_duration is configured; direction-derived
-   * (opening = open, closing = closed) otherwise.
+   * Cover tilt (0.0 = slats closed, 1.0 = slats open). Cover only. Continuous while tilt_duration is configured; direction-derived (opening = open, closing = closed) otherwise.
    */
   'tilt'?: number;
   /**

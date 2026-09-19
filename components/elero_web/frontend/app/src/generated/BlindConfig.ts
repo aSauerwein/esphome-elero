@@ -35,8 +35,7 @@ interface BlindConfig {
    */
   'close_ms': number;
   /**
-   * Slat tilt sweep duration in milliseconds
-   * (0 = tilt estimation disabled)
+   * Slat tilt sweep duration in milliseconds (0 = tilt estimation disabled)
    * @example 1500
    */
   'tilt_ms': number;
