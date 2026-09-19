@@ -5,6 +5,85 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0](https://github.com/aSauerwein/esphome-elero/compare/v0.10.0...v0.11.0) (2026-09-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* `cover: - platform: elero` and `light: - platform: elero` are gone. Devices now live exclusively in NVS and are managed via the web UI (or restored from a snapshot via `import_config`). Run `uv run scripts/migrate_yaml_to_json.py <old.yaml> -o backup.json` and upload via Hub → Backup & Restore. Full guide: docs/MIGRATION-yaml-to-nvs.md.
+
+### Features
+
+* **web:** add Export YAML button for saved NVS devices ([7e8bbf2](https://github.com/aSauerwein/esphome-elero/commit/7e8bbf2e7c2fbc58b03a1c5d609e7d1e9bd7a517))
+* add learn-in websocket flow and UI ([1e5089d](https://github.com/aSauerwein/esphome-elero/commit/1e5089d1016214ad4d75187ca123d1f05405ed80))
+* add manage tab to web UI ([#54](https://github.com/aSauerwein/esphome-elero/issues/54)) ([a527935](https://github.com/aSauerwein/esphome-elero/commit/a527935880d91ce1f4f0f40b308b167004abceb6))
+* add refresh button + request_check for covers and lights ([3a8d5a9](https://github.com/aSauerwein/esphome-elero/commit/3a8d5a9111e25b2416cc461bd1ac6a640ebae773))
+* add SPI boot diagnostics for CC1101 wiring issues ([2efae3c](https://github.com/aSauerwein/esphome-elero/commit/2efae3cffefe6b42878259eb99a5b73af913ee3a))
+* add state publishing debug logging ([511150e](https://github.com/aSauerwein/esphome-elero/commit/511150eda2b2cd84ba7be0428862038094ddda7c))
+* add SX1276 radio driver for LILYGO LoRa32 boards ([ae8bc8a](https://github.com/aSauerwein/esphome-elero/commit/ae8bc8a4dba514a25e50fc42b23c04bcfa9417b7))
+* backup/restore via WebSocket (Phase 1) ([7a37239](https://github.com/aSauerwein/esphome-elero/commit/7a37239584dfe4e1d6ea52c396c8c36941d168bb))
+* native API + NVS mode with dynamic entity creation at boot ([fd1fe0d](https://github.com/aSauerwein/esphome-elero/commit/fd1fe0df4f4b5740f892a2945aed30a8905160c1))
+* tilt-before-lift position model with continuous tilt tracking ([d41bb41](https://github.com/aSauerwein/esphome-elero/commit/d41bb41ae3fecb8a4c354fecadeacabbbfaeb499))
+* TX multi-dest 0x44 group commands ([#41](https://github.com/aSauerwein/esphome-elero/issues/41)) ([07f0a95](https://github.com/aSauerwein/esphome-elero/commit/07f0a95c81504c39760d3e4201347d9de3a48683))
+* yaml→json migration script + docs ([2e45cf5](https://github.com/aSauerwein/esphome-elero/commit/2e45cf519bd25dbbb6d619e3675ce780c74601f8))
+
+### Bug Fixes
+
+* add FEM init logging and clarify V4.3.1 untested status ([82fe094](https://github.com/aSauerwein/esphome-elero/commit/82fe09448b987173e5d267bb67f89fd32dbef66c))
+* add PLL/XOSC sensitivity handling to SX1276 check_health ([ac3da13](https://github.com/aSauerwein/esphome-elero/commit/ac3da13f334a8e87f0cec72ff6fff228fdc7e404))
+* add RX guard to SX1276 has_data, remove dead setup_spi, validate PA floor ([e62a3dd](https://github.com/aSauerwein/esphome-elero/commit/e62a3dd3a05d1d7f186be4cdb6e168aaa7cb304b))
+* address review comments ([4e51d34](https://github.com/aSauerwein/esphome-elero/commit/4e51d34bd8b1cb4d8936e9bc17eaa3097700f5ba))
+* audit fixes: NVS init before adapter setup, drop dead dataflow add ([0c9ad5e](https://github.com/aSauerwein/esphome-elero/commit/0c9ad5e70b358286453b6cb36ee46bc2db6d40ec))
+* deduplicate remote device publish notifications ([ce13bc6](https://github.com/aSauerwein/esphome-elero/commit/ce13bc6924a3b8837eda1474dc6fd73680addbc7))
+* derive learn-in virtual remote from hardware ([18ed11c](https://github.com/aSauerwein/esphome-elero/commit/18ed11ca1e2a6b17ed81dfeafb065fc258451c17))
+* frontend buildstep ([579f678](https://github.com/aSauerwein/esphome-elero/commit/579f678d69aa1b79a8522bfd87b0f33a1207322a))
+* HA-native entity naming + overridable hub name ([03fe806](https://github.com/aSauerwein/esphome-elero/commit/03fe806bf14c4f0f936d247c2eb983411bb0de3f))
+* harden CC1101 driver — bound SPI retry, normalize atomics, bump TX queue ([435c622](https://github.com/aSauerwein/esphome-elero/commit/435c622c3399a4d929234efb4d8f33b0f0cf8d0d))
+* harden cc1101 tx/rx handoff ([fbbb0d7](https://github.com/aSauerwein/esphome-elero/commit/fbbb0d7c28037b0e8f90cba3c58ee4a41da39830))
+* harden command pipeline edge cases ([4dc199e](https://github.com/aSauerwein/esphome-elero/commit/4dc199ecb11ef9d20bfbb948f77caf4578bc42ba))
+* harden SX1262 TX/RX state transitions ([1826966](https://github.com/aSauerwein/esphome-elero/commit/1826966e93164b906bcea8a6beece70eeff5700b))
+* harden SX1276 TX/RX state transitions ([83b2786](https://github.com/aSauerwein/esphome-elero/commit/83b27861e6370a58dba83722ad849759a0257538))
+* ignore YAML-defined devices when NVS mode is active ([71e45fd](https://github.com/aSauerwein/esphome-elero/commit/71e45fdf7abee487dd25c3fbe82f56566dc842e0))
+* minimize TX — reduce CHECK packets to 1, remove dead immediate_poll ([268ba37](https://github.com/aSauerwein/esphome-elero/commit/268ba37487d20e88ae09d69fcbd873d8700eb15b))
+* mise tasks ([001dd68](https://github.com/aSauerwein/esphome-elero/commit/001dd68e90c57079ffd3201448d561551912b13d))
+* power GC1109 FEM before SX1262 calibration (Heltec V4) ([520c4fb](https://github.com/aSauerwein/esphome-elero/commit/520c4fb4f715e12a69f2fc995ecb877c832c05e9))
+* radio hardening ([86cdf41](https://github.com/aSauerwein/esphome-elero/commit/86cdf41ff58c1f3bb8f6f7e775d7fb41120cc548))
+* remove bogus channel 1 → 0x11 remapping in button packets ([df24e11](https://github.com/aSauerwein/esphome-elero/commit/df24e114b39f269b66e848b49814a368fd5dacf4))
+* remove echo detection — solves non-existent problem, risks false suppression ([22375d3](https://github.com/aSauerwein/esphome-elero/commit/22375d39934964345a5a1cfd3868392356d6bd9b)), closes [#15](https://github.com/aSauerwein/esphome-elero/issues/15)
+* review fixes for backup/restore handlers ([b151834](https://github.com/aSauerwein/esphome-elero/commit/b15183473e092dd596b5bcdbf3610ee1ccfda131))
+* review fixes: lifetime, render-time mutation, NVS log, hub-name tests ([9f3f24d](https://github.com/aSauerwein/esphome-elero/commit/9f3f24d0bdcdbda9e5418bb4eade1b1e8a06a4cf))
+* self-cleaning num_dests, registry tests, release comment ([2668596](https://github.com/aSauerwein/esphome-elero/commit/2668596e24e572421ce247220df658498424a680))
+* simplify state reporting — use RF state byte, fix dedup, remove poll_interval ([ced968e](https://github.com/aSauerwein/esphome-elero/commit/ced968e2fac652b3c6de928dbda5cafb280664c4))
+* SPI write verification uses operational value, bump counter on TX cancel ([df1c8d0](https://github.com/aSauerwein/esphome-elero/commit/df1c8d00ebaf807c741086355f1a70eb60e43860))
+* support ESPHome 2026.8 and LilyGO native API builds ([1137045](https://github.com/aSauerwein/esphome-elero/commit/1137045594f349b0c677e123b2f9140e4780ae54))
+* tighten SX1262 TX FSM invariants ([483a389](https://github.com/aSauerwein/esphome-elero/commit/483a389392baa837872f27e7da11429311832b2f))
+* use __has_include guard for json dependency in state_snapshot ([447f56a](https://github.com/aSauerwein/esphome-elero/commit/447f56afdd4f8b77e93fa7bae571138ce47b1b57))
+
+### Refactoring
+
+* add RadioMode to enforce half-duplex contract ([5374d86](https://github.com/aSauerwein/esphome-elero/commit/5374d86827b8e89b470af8d92693d752386ac7f6))
+* centralize publish decisions in registry via Published cache + change flags ([7c0781b](https://github.com/aSauerwein/esphome-elero/commit/7c0781bf7689e389fb47098ccf0389c8c1ee498f))
+* escalating recovery — flush → reset → mark failed ([553543b](https://github.com/aSauerwein/esphome-elero/commit/553543bd0c26cb00576d5eb2e3237d5f0aa1e67f))
+* simplify registry publish path and migrate agent resources ([cf1df6b](https://github.com/aSauerwein/esphome-elero/commit/cf1df6b082eb655c2125c205b238b6a85a42c197))
+* split IRQ flag into rx_ready + tx_done ([8114e77](https://github.com/aSauerwein/esphome-elero/commit/8114e77af29a9f890393a24e32b51c310eac86f0))
+* trust MCSM1 auto-return to RX after TX, verify FIFO clean ([0677796](https://github.com/aSauerwein/esphome-elero/commit/0677796214c77ea1fb0c8f8f5b17a8e86b79b011))
+
+### Documentation
+
+* backup/restore guide + sweep remaining YAML-mode references ([33cf9b9](https://github.com/aSauerwein/esphome-elero/commit/33cf9b9f006d3e4a6b5cf223a592548c6dc430c0))
+* document Heltec V4 FEM variants and pin mapping ([a8111a5](https://github.com/aSauerwein/esphome-elero/commit/a8111a5bec4df080bbd78e5de413113d3e7a3874))
+* document tilt support, position tracking and fork features in README ([9cd79c9](https://github.com/aSauerwein/esphome-elero/commit/9cd79c98d620cb24074413171a04f0c56a72de26))
+* RFC-002 plan for NVS-only refactor + backup/restore ([148b4e4](https://github.com/aSauerwein/esphome-elero/commit/148b4e46a35bb72534a6ff41b800f9bb7f196bde))
+* simplify bloated docs ([312efcc](https://github.com/aSauerwein/esphome-elero/commit/312efcc6021b384ded88ba300cfec2085e34beaa))
+* slim CLAUDE.md 84%, update outdated docs to match dual-core architecture ([0c1a4d1](https://github.com/aSauerwein/esphome-elero/commit/0c1a4d1c5c0ce398dbc575fe53b3e03d8a3c1289))
+* translate CONFIGURATION.md and INSTALLATION.md from German to English ([a061f6d](https://github.com/aSauerwein/esphome-elero/commit/a061f6da49796e7cccb3a663618fa0b5f8cfd373))
+* update architecture docs for centralized publish decisions ([979db90](https://github.com/aSauerwein/esphome-elero/commit/979db900f801d353fc45d134204d5a9def3598b2))
+
+### Maintenance
+
+* NVS-only devices — remove YAML cover/light platforms ([7ba04ca](https://github.com/aSauerwein/esphome-elero/commit/7ba04cad65991ce677be0365e0994e81d7d80ff2))
+
+
 ## [0.10.0](https://github.com/manuschillerdev/esphome-elero/compare/v0.9.0...v0.10.0) (2026-04-01)
 
 
