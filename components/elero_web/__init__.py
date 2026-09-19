@@ -21,7 +21,7 @@ _MONGOOSE_BASE_URL = (
 _MONGOOSE_FILES = ("mongoose.h", "mongoose.c")
 _COMPONENT_DIR = Path(__file__).parent
 
-_GITHUB_REPO = "manuschillerdev/esphome-elero"
+_GITHUB_REPO = "aSauerwein/esphome-elero"
 _UI_HEADER_FILENAME = "elero_web_ui.h"
 
 # Exported so the switch sub-platform can reference the web server class
