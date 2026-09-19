@@ -39,9 +39,7 @@ interface DeviceSnapshot {
    */
   'close_duration_ms'?: number;
   /**
-   * Cover slat tilt sweep duration in ms
-   * (0 = tilt estimation disabled; must be smaller than open/close_duration_ms
-   * when position tracking is enabled).
+   * Cover slat tilt sweep duration in ms (0 = tilt estimation disabled; must be smaller than open/close_duration_ms when position tracking is enabled).
    * @example 1500
    */
   'tilt_duration_ms'?: number;

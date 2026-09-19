@@ -70,9 +70,7 @@ interface UpsertDevicePayload {
    */
   'close_duration_ms'?: number;
   /**
-   * Slat tilt sweep duration in milliseconds
-   * (cover only, 0 = tilt estimation disabled; must be smaller than
-   * open/close_duration_ms when position tracking is enabled)
+   * Slat tilt sweep duration in milliseconds (cover only, 0 = tilt estimation disabled; must be smaller than open/close_duration_ms when position tracking is enabled)
    * @example 1500
    */
   'tilt_duration_ms'?: number;
