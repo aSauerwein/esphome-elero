@@ -5,6 +5,18 @@ ESPHome component for controlling Elero wireless blinds and lights via an ESP32 
 [![ESPHome](https://img.shields.io/badge/ESPHome-Component-blue)](https://esphome.io/)
 [![License](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
+## Features
+
+- **Blinds, shutters, awnings and lights** over Elero's 868.35 MHz RF (CC1101, SX1262 or SX1276).
+- **Bidirectional** -- sends commands and receives status feedback (state, direction, problems, RSSI).
+- **Position tracking** -- derives cover position from measured open/close travel times. Intermediate positions and stop-at-target work without endstops.
+- **Venetian tilt support** -- models the "tilt before lift" behaviour of slat blinds: position stays frozen while the slats rotate, and Home Assistant gets a continuous 0-100 % tilt slider. See [Tilt model](docs/CONFIGURATION.md#tilt-model).
+- **Devices live in NVS** -- discover, add, edit and remove devices at runtime in the built-in web UI; no per-device YAML. Back up and restore the whole device list as JSON.
+- **Home Assistant** via the native API (`elero_nvs:`) or MQTT discovery (`elero_mqtt:`).
+- **Web UI** -- live RF packet view, device discovery, learn-in, device editor and hub settings.
+- **Groups** -- send one RF command to several blinds that share a remote.
+- **ESPHome 2026.8** support, including LilyGO LoRa32 native API builds.
+
 ## Quick Start
 
 **ESPHome 2026.8.2 fork:** For the ESP32-PICO-D4 LilyGO LoRa32 with SX1276
@@ -14,7 +26,7 @@ The generated web UI is included, so ESPHome can pull this fork directly:
 
 ```yaml
 external_components:
-  - source: github://aSauerwein/esphome-elero@dev
+  - source: github://aSauerwein/esphome-elero@main
     refresh: 0s
 ```
 
@@ -73,7 +85,17 @@ elero_web:
 
 ### 4. Tune per-device settings
 
-Per-device fields (travel durations, tilt, HA device class, protocol bytes) are edited in the web UI -- see the [Configuration Reference](docs/CONFIGURATION.md). Venetian blinds with slat tilt: set `tilt_duration` to get position tracking that accounts for the tilt-before-lift phase and a continuous 0-100 % tilt slider in Home Assistant (see [Tilt model](docs/CONFIGURATION.md#tilt-model)).
+Per-device fields (travel durations, tilt, HA device class, protocol bytes) are edited in the web UI -- see the [Configuration Reference](docs/CONFIGURATION.md).
+
+**Position tracking** (`open_duration` / `close_duration`): stopwatch the full wall-clock travel time and enter it in seconds. Leave both at `0` if you only need open/close.
+
+**Venetian tilt** (`tilt_duration_ms`): for slat blinds that rotate their slats before travelling ("tilt before lift"):
+
+1. Toggle **Tilt** on for the cover in the web UI.
+2. Stop the blind mid-travel, tilt the slats closed, and stopwatch one full slat sweep (typically 0.8-2.5 s). Enter it as the tilt duration.
+3. Measure `open_duration` / `close_duration` from the fully closed position (slats closed) -- the tilt sweep is already included in the wall-clock time.
+
+With `tilt_duration_ms` set, Home Assistant gets a continuous tilt slider, position stays frozen while the slats rotate, and tilt-only moves are supported. With `tilt_duration_ms = 0` the legacy behaviour applies: tilt commands drive the motor's stored tilt favourite and tilt reports the movement direction extremes. Full details: [Tilt model](docs/CONFIGURATION.md#tilt-model).
 
 ### Migrating from older versions (YAML-defined devices)
 
