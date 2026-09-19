@@ -294,6 +294,26 @@ export function DeviceExpandedPanel({ device }: { device: Device }) {
                 />
                 <span>s</span>
               </label>
+              {device.supports_tilt && (
+                <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Tooltip>
+                    <TooltipTrigger><span>&#x25D0;</span></TooltipTrigger>
+                    <TooltipContent>Slat tilt sweep time (0 = tilt estimation off, tilt commands send the motor's stored tilt position)</TooltipContent>
+                  </Tooltip>
+                  <input
+                    type="number"
+                    value={+(device.tilt_ms / 1000).toFixed(1)}
+                    onInput={(e) => {
+                      const raw = (e.target as HTMLInputElement).value
+                      const v = raw === '' ? 0 : parseFloat(raw)
+                      if (!isNaN(v)) updateDevice(device.address, { tilt_ms: Math.round(Math.max(0, v) * 1000) })
+                    }}
+                    min={0} max={30} step={0.1}
+                    className={inputClass}
+                  />
+                  <span>s</span>
+                </label>
+              )}
               <Toggle checked={device.supports_tilt} onChange={(v) => updateDevice(device.address, { supports_tilt: v })} label="Tilt" />
             </>
           )}

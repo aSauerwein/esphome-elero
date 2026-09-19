@@ -134,6 +134,7 @@ export interface Device {
   name: string
   open_ms: number
   close_ms: number
+  tilt_ms: number
   supports_tilt: boolean
   dim_ms: number
   lastStatus: RfPacketWithTimestamp | null
@@ -233,6 +234,7 @@ function makeDevice(partial: Partial<Device> & { address: string; type: DeviceTy
     name: '',
     open_ms: 0,
     close_ms: 0,
+    tilt_ms: 0,
     supports_tilt: false,
     dim_ms: 0,
     lastStatus: null,
@@ -244,7 +246,7 @@ function blindToDevice(b: BlindConfig): Device {
   return makeDevice({
     address: b.address, type: 'cover', updated_at: b.updated_at || null, enabled: b.enabled,
     name: b.name, channel: b.channel, remote: b.remote, pairings: makePairings(b.remote, b.channel),
-    open_ms: b.open_ms, close_ms: b.close_ms, supports_tilt: b.supports_tilt,
+    open_ms: b.open_ms, close_ms: b.close_ms, tilt_ms: b.tilt_ms ?? 0, supports_tilt: b.supports_tilt,
     lastStatus: b.state && b.state !== '0x00'
       ? { state: b.state, rssi: b.rssi } as RfPacketWithTimestamp
       : null,
@@ -407,6 +409,7 @@ export function onDeviceUpserted(data: DeviceUpsertedData) {
     pairings: makePairings(data.remote, data.channel),
     open_ms: data.open_ms ?? 0,
     close_ms: data.close_ms ?? 0,
+    tilt_ms: data.tilt_ms ?? 0,
     supports_tilt: data.supports_tilt ?? false,
     dim_ms: data.dim_ms ?? 0,
     lastStatus: existing?.lastStatus ?? null,

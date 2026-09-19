@@ -336,7 +336,8 @@ void MqttAdapter::publish_cover_state_(const Device &dev, uint16_t changes) {
 
     if (changes & (state_change::PROBLEM | state_change::TILT)) {
         std::string attrs = json::build_json([&](JsonObject root) {
-            root["tilted"] = pub.tilted;
+            root["tilt"] = pub.tilt_pct;   ///< 0–100, continuous when tilt_duration_ms > 0
+            root["tilted"] = pub.tilt_pct > 50;  // Legacy key — kept for compatibility
             root["device_class"] = ha_cover_class_str(static_cast<HaCoverClass>(dev.config.ha_device_class));
             root["problem_type"] = pub.problem_type;
         });
@@ -345,7 +346,9 @@ void MqttAdapter::publish_cover_state_(const Device &dev, uint16_t changes) {
     }
 
     if ((changes & state_change::TILT) && dev.config.supports_tilt != 0) {
-        ctx_.publish(DeviceType::COVER, addr, mqtt_topic::TILT_STATE, pub.tilted ? "100" : "0", false);
+        char tilt_buf[8];
+        snprintf(tilt_buf, sizeof(tilt_buf), "%d", pub.tilt_pct);
+        ctx_.publish(DeviceType::COVER, addr, mqtt_topic::TILT_STATE, tilt_buf, false);
         ++topics;
     }
 
@@ -381,11 +384,12 @@ void MqttAdapter::subscribe_cover_commands_(const Device &dev) {
         });
 
     ctx_.subscribe(DeviceType::COVER, addr, mqtt_topic::TILT,
-        [this, addr](const char *, const char *) {
+        [this, addr](const char *, const char *payload) {
             Device *d = registry_->find(addr, DeviceType::COVER);
             if (d == nullptr) return;
 
-            registry_->command_cover_tilt(*d);
+            float target = static_cast<float>(atoi(payload)) / PERCENT_SCALE;
+            registry_->set_cover_tilt(*d, target);
         });
 
     ESP_LOGD(TAG, "Subscribed to cover commands for 0x%06x", addr);

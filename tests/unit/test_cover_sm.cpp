@@ -34,6 +34,15 @@ class CoverSmTest : public ::testing::Test {
         .movement_timeout_ms = 120000,
         .post_stop_cooldown_ms = 3000,
     };
+
+    // Tilt model: 10s wall time includes a 2s slat sweep → 8s net travel
+    sm::Context tilt_ctx{
+        .open_duration_ms = 10000,
+        .close_duration_ms = 10000,
+        .tilt_duration_ms = 2000,
+        .movement_timeout_ms = 120000,
+        .post_stop_cooldown_ms = 3000,
+    };
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -531,4 +540,142 @@ TEST_F(CoverSmTest, RapidStopThenResumeFromStoppingState) {
     s = sm::on_command(s, pkt::command::UP, 4000, ctx);
     ASSERT_TRUE(std::holds_alternative<sm::Opening>(s));
     EXPECT_NEAR(std::get<sm::Opening>(s).start_position, 0.3f, 0.01f);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TILT MODEL — tilt-before-lift dead time
+// ═══════════════════════════════════════════════════════════════════════════════
+
+TEST_F(CoverSmTest, HasTiltTrackingRequiresDuration) {
+    EXPECT_FALSE(sm::has_tilt_tracking(ctx));
+    EXPECT_TRUE(sm::has_tilt_tracking(tilt_ctx));
+}
+
+TEST_F(CoverSmTest, TiltFrozenWhileOpeningFromSlatsClosed) {
+    // Opening from position 0.5, slats closed: dead time = (1-0) * 2000ms
+    sm::State s = sm::Opening{0.5f, 0, 0.0f};
+    EXPECT_FLOAT_EQ(sm::position(s, 1000, tilt_ctx), 0.5f);  // mid-tilt: frozen
+    EXPECT_FLOAT_EQ(sm::tilt(s, 1000, tilt_ctx), 0.5f);     // 1000/2000 sweep
+    EXPECT_FLOAT_EQ(sm::position(s, 1999, tilt_ctx), 0.5f);  // still frozen
+    EXPECT_FLOAT_EQ(sm::tilt(s, 2000, tilt_ctx), 1.0f);      // slats open
+}
+
+TEST_F(CoverSmTest, TiltFrozenWhileClosingFromSlatsOpen) {
+    // Closing from position 0.5, slats open: dead time = 1.0 * 2000ms
+    sm::State s = sm::Closing{0.5f, 0, 1.0f};
+    EXPECT_FLOAT_EQ(sm::position(s, 1000, tilt_ctx), 0.5f);
+    EXPECT_FLOAT_EQ(sm::tilt(s, 1000, tilt_ctx), 0.5f);
+    EXPECT_FLOAT_EQ(sm::tilt(s, 2000, tilt_ctx), 0.0f);
+}
+
+TEST_F(CoverSmTest, PositionMovesImmediatelyWhenSlatsAlreadyOpen) {
+    // Opening at 50% with slats already open — zero dead time
+    sm::State s = sm::Opening{0.5f, 0, 1.0f};
+    EXPECT_FLOAT_EQ(sm::position(s, 2000, tilt_ctx), 0.75f);  // 2s of 8s net
+}
+
+TEST_F(CoverSmTest, WallTimeDurationMatchesFullRunFromClosed) {
+    // Full open from (pos 0, slats closed) must take exactly open_duration wall time
+    sm::State s = sm::Opening{0.0f, 0, 0.0f};
+    EXPECT_FLOAT_EQ(sm::position(s, 9999, tilt_ctx), 0.999875f);  // 7999/8000
+    EXPECT_FLOAT_EQ(sm::position(s, 10000, tilt_ctx), 1.0f);
+}
+
+TEST_F(CoverSmTest, TiltAdvancesLinearlyDuringSweep) {
+    sm::State s = sm::Opening{0.0f, 0, 0.25f};
+    EXPECT_FLOAT_EQ(sm::tilt(s, 500, tilt_ctx), 0.5f);   // 0.25 + 500/2000
+    EXPECT_FLOAT_EQ(sm::tilt(s, 1500, tilt_ctx), 1.0f);  // clamped
+}
+
+TEST_F(CoverSmTest, ReversalIncludesFullSweepBackDeadTime) {
+    // Opening for 4000ms from (0, slats closed): travel 2000/8000 → pos 0.25
+    sm::State s = sm::Opening{0.0f, 0, 0.0f};
+    ASSERT_NEAR(sm::position(s, 4000, tilt_ctx), 0.25f, 0.001f);
+
+    // Reverse: slats must sweep all the way back (start_tilt = 1.0 at reversal)
+    s = sm::on_command(s, pkt::command::DOWN, 4000, tilt_ctx);
+    ASSERT_TRUE(std::holds_alternative<sm::Closing>(s));
+    auto &c = std::get<sm::Closing>(s);
+    EXPECT_FLOAT_EQ(c.start_tilt, 1.0f);
+    EXPECT_NEAR(c.start_position, 0.25f, 0.001f);
+
+    // During the 2s re-tilt phase position stays frozen at 0.25
+    EXPECT_NEAR(sm::position(s, 6000, tilt_ctx), 0.25f, 0.001f);
+    // ...then travels: at t=10s total, 4s of net travel from 0.25 → 0.25 - 4/8 = -0.25 → clamped 0
+    EXPECT_NEAR(sm::position(s, 10000, tilt_ctx), 0.0f, 0.01f);
+    EXPECT_FLOAT_EQ(sm::tilt(s, 10000, tilt_ctx), 0.0f);
+}
+
+TEST_F(CoverSmTest, StopMidTiltFreezesBothPositionAndTilt) {
+    sm::State s = sm::Opening{0.5f, 0, 0.0f};
+    s = sm::on_command(s, pkt::command::STOP, 1000, tilt_ctx);
+    ASSERT_TRUE(std::holds_alternative<sm::Stopping>(s));
+    auto &st = std::get<sm::Stopping>(s);
+    EXPECT_FLOAT_EQ(st.position, 0.5f);
+    EXPECT_FLOAT_EQ(st.tilt, 0.5f);
+
+    // Derived values frozen while cooling down
+    EXPECT_FLOAT_EQ(sm::position(s, 2000, tilt_ctx), 0.5f);
+    EXPECT_FLOAT_EQ(sm::tilt(s, 2000, tilt_ctx), 0.5f);
+
+    // Cooldown expiry preserves both
+    s = sm::on_tick(s, 4000, tilt_ctx);
+    ASSERT_TRUE(std::holds_alternative<sm::Idle>(s));
+    EXPECT_FLOAT_EQ(std::get<sm::Idle>(s).tilt, 0.5f);
+
+    // Resuming from a partial tilt: dead time only covers the remaining sweep
+    s = sm::on_command(s, pkt::command::UP, 4000, tilt_ctx);
+    ASSERT_TRUE(std::holds_alternative<sm::Opening>(s));
+    EXPECT_FLOAT_EQ(std::get<sm::Opening>(s).start_tilt, 0.5f);
+    // 1000ms of tilt sweep remain before travel begins
+    EXPECT_FLOAT_EQ(sm::position(s, 4999, tilt_ctx), 0.5f);
+    EXPECT_FLOAT_EQ(sm::position(s, 5000, tilt_ctx), 0.5f);
+    EXPECT_NEAR(sm::position(s, 5800, tilt_ctx), 0.6f, 0.001f);  // 800ms of 8s net
+}
+
+TEST_F(CoverSmTest, TiltDefaultsToDirectionExtremesWithoutDuration) {
+    // No tilt_duration → movement reports direction extremes (legacy binary behavior)
+    sm::State opening = sm::Opening{0.0f, 0};
+    EXPECT_FLOAT_EQ(sm::tilt(opening, 5000, ctx), 1.0f);
+    EXPECT_FLOAT_EQ(sm::tilt(sm::Closing{1.0f, 0}, 5000, ctx), 0.0f);
+}
+
+TEST_F(CoverSmTest, RfEndpointsSetTilt) {
+    auto top = sm::on_rf_status(sm::Idle{0.3f, 0.5f}, pkt::state::TOP, 100, ctx);
+    ASSERT_TRUE(std::holds_alternative<sm::Idle>(top));
+    EXPECT_FLOAT_EQ(std::get<sm::Idle>(top).position, 1.0f);
+    EXPECT_FLOAT_EQ(std::get<sm::Idle>(top).tilt, 0.0f);
+
+    auto top_tilt = sm::on_rf_status(sm::Idle{0.3f, 0.5f}, pkt::state::TOP_TILT, 100, ctx);
+    ASSERT_TRUE(std::holds_alternative<sm::Idle>(top_tilt));
+    EXPECT_FLOAT_EQ(std::get<sm::Idle>(top_tilt).position, 1.0f);
+    EXPECT_FLOAT_EQ(std::get<sm::Idle>(top_tilt).tilt, 1.0f);
+
+    // TILT byte while idle: at stored tilt favorite — position guess preserved
+    auto tilt = sm::on_rf_status(sm::Idle{0.4f, 0.0f}, pkt::state::TILT, 100, ctx);
+    ASSERT_TRUE(std::holds_alternative<sm::Idle>(tilt));
+    EXPECT_FLOAT_EQ(std::get<sm::Idle>(tilt).position, 0.4f);
+    EXPECT_FLOAT_EQ(std::get<sm::Idle>(tilt).tilt, 1.0f);
+}
+
+TEST_F(CoverSmTest, RfMovementFromIdlePreservesTilt) {
+    auto s = sm::on_rf_status(sm::Idle{0.5f, 0.7f}, pkt::state::MOVING_UP, 100, tilt_ctx);
+    ASSERT_TRUE(std::holds_alternative<sm::Opening>(s));
+    EXPECT_FLOAT_EQ(std::get<sm::Opening>(s).start_tilt, 0.7f);
+    // Dead time covers only the remaining 30% of the sweep: 0.3 * 2000ms = 600ms
+    EXPECT_FLOAT_EQ(sm::position(s, 100, tilt_ctx), 0.5f);
+    EXPECT_FLOAT_EQ(sm::position(s, 700, tilt_ctx), 0.5f);
+    // At t=1600: (1600-100-600)/8000 = 900ms net → 0.5 + 900/8000 = 0.6125
+    EXPECT_NEAR(sm::position(s, 1600, tilt_ctx), 0.6125f, 0.001f);
+}
+
+TEST_F(CoverSmTest, TiltDurationZeroKeepsLegacyPositionMath) {
+    // With tilt_duration_ms = 0 the start_tilt anchor is ignored and the
+    // position derivation is byte-identical to the pre-tilt model.
+    sm::State legacy = sm::Opening{0.0f, 1000};
+    sm::State with_tilt_field = sm::Opening{0.0f, 1000, 0.7f};
+
+    EXPECT_FLOAT_EQ(sm::position(legacy, 6000, ctx), 0.5f);
+    EXPECT_FLOAT_EQ(sm::position(with_tilt_field, 6000, ctx), 0.5f);
+    EXPECT_FLOAT_EQ(sm::position(with_tilt_field, 20000, ctx), 1.0f);
 }

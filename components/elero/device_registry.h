@@ -97,7 +97,14 @@ class DeviceRegistry {
     /// Set a cover's target position (0.0–1.0). Determines direction, sets target, starts movement.
     void set_cover_position(Device &dev, float target);
 
-    /// Dispatch a tilt command to a cover device.
+    /// Set a cover's tilt target (0.0–1.0). With tilt_duration configured, this
+    /// sends a short UP/DOWN jog and auto-stops when the derived tilt crosses the
+    /// target (tilt-before-lift guarantees no position change during a jog).
+    /// Without tilt_duration, falls back to the RF TILT favorite command.
+    void set_cover_tilt(Device &dev, float target);
+
+    /// Dispatch a tilt command to a cover device (RF TILT = motor's stored
+    /// tilt favorite position).
     void command_cover_tilt(Device &dev);
 
     /// Dispatch a command byte to a light device (on/off + FSM + enqueue).
@@ -236,6 +243,9 @@ class DeviceRegistry {
     void update_hub_display_name_();
 
     // ── Internal helpers ──
+    /// Migrate a loaded NVS config to the current version in-place.
+    /// Returns true if the config is usable (valid) after migration.
+    [[nodiscard]] bool migrate_device_config_(NvsDeviceConfig &cfg, size_t slot_idx);
     Device *find_free_slot_();
     NvsGroupConfig *find_free_group_slot_();
     [[nodiscard]] bool validate_group_(const NvsGroupConfig &config, std::string *error) const;

@@ -464,15 +464,29 @@ TEST_F(DeviceRegistryTest, RfStatus_UpdatesMetadataAndTransitionsFsm) {
     EXPECT_TRUE(cover_sm::is_moving(std::get<CoverDevice>(dev->logic).state));
 }
 
-TEST_F(DeviceRegistryTest, RfStatus_TiltSetAndClearedByMovement) {
+TEST_F(DeviceRegistryTest, RfStatus_TiltSetAndMovementReportsDirectionExtremes) {
     auto *dev = add_cover();
+    auto ctx = cover_context(dev->config);
+    uint32_t now = mock_time_.millis();
 
-    registry_.on_rf_packet(make_status_pkt(0xA831E5, pkt::state::TILT), mock_time_.millis());
-    EXPECT_TRUE(std::get<CoverDevice>(dev->logic).tilted);
+    // TILT byte → idle at stored tilt position (tilt = open)
+    registry_.on_rf_packet(make_status_pkt(0xA831E5, pkt::state::TILT), now);
+    EXPECT_FLOAT_EQ(cover_sm::tilt(std::get<CoverDevice>(dev->logic).state, now, ctx),
+                    cover_sm::TILT_OPEN);
 
-    // Movement clears tilt — this is stateful across packets and easy to break
-    registry_.on_rf_packet(make_status_pkt(0xA831E5, pkt::state::MOVING_UP), mock_time_.millis());
-    EXPECT_FALSE(std::get<CoverDevice>(dev->logic).tilted);
+    // Without tilt_duration, movement reports direction extremes:
+    // moving down sweeps slats closed, moving up sweeps them open.
+    mock_time_.advance(100);
+    now = mock_time_.millis();
+    registry_.on_rf_packet(make_status_pkt(0xA831E5, pkt::state::MOVING_DOWN), now);
+    EXPECT_FLOAT_EQ(cover_sm::tilt(std::get<CoverDevice>(dev->logic).state, now, ctx),
+                    cover_sm::TILT_CLOSED);
+
+    mock_time_.advance(100);
+    now = mock_time_.millis();
+    registry_.on_rf_packet(make_status_pkt(0xA831E5, pkt::state::MOVING_UP), now);
+    EXPECT_FLOAT_EQ(cover_sm::tilt(std::get<CoverDevice>(dev->logic).state, now, ctx),
+                    cover_sm::TILT_OPEN);
 }
 
 TEST_F(DeviceRegistryTest, RfStatus_DuplicateStateByte_StillPublishesRssiChange) {
@@ -658,7 +672,7 @@ TEST(DiffCoverTest, FirstDiff_DefaultPublished_ReturnsAllFlags) {
         .position = 0.0f,
         .ha_state = "closed",
         .operation = cover_sm::Operation::IDLE,
-        .tilted = false,
+        .tilt = 0.0f,
         .is_problem = false,
         .problem_type = "none",
         .rssi = -50.0f,
@@ -682,7 +696,7 @@ TEST(DiffCoverTest, IdenticalSnapshot_ReturnsZero) {
         .position = 0.5f,
         .ha_state = "open",
         .operation = cover_sm::Operation::IDLE,
-        .tilted = false,
+        .tilt = 0.0f,
         .is_problem = false,
         .problem_type = "none",
         .rssi = -40.0f,
@@ -704,7 +718,7 @@ TEST(DiffCoverTest, SingleFieldChange_ReturnsOnlyThatFlag) {
         .position = 0.5f,
         .ha_state = "open",
         .operation = cover_sm::Operation::IDLE,
-        .tilted = false,
+        .tilt = 0.0f,
         .is_problem = false,
         .problem_type = "none",
         .rssi = -40.0f,
@@ -730,7 +744,7 @@ TEST(DiffCoverTest, RssiRounding_SameRounded_NoFlag) {
         .position = 0.0f,
         .ha_state = "closed",
         .operation = cover_sm::Operation::IDLE,
-        .tilted = false,
+        .tilt = 0.0f,
         .is_problem = false,
         .problem_type = "none",
         .rssi = -40.3f,

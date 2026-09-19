@@ -9,8 +9,9 @@
 namespace esphome {
 namespace elero {
 
-/// NVS config version — bump when struct layout changes (v3: added updated_at)
-constexpr uint8_t NVS_CONFIG_VERSION = 3;
+/// NVS config version — bump when struct layout changes
+/// (v3: added updated_at, v4: repurposed deprecated poll_interval slot as tilt_duration_ms)
+constexpr uint8_t NVS_CONFIG_VERSION = 4;
 
 /// NVS group config version — separate compound objects, not device slots.
 constexpr uint8_t NVS_GROUP_CONFIG_VERSION = 1;
@@ -60,10 +61,10 @@ struct NvsDeviceConfig {
   uint8_t rf_reserved{0};
 
   // Timing (16 bytes)
-  uint32_t open_duration_ms{0};
-  uint32_t close_duration_ms{0};
-  uint32_t poll_interval_ms_reserved{0};  ///< DEPRECATED: kept for NVS struct layout compat, ignored at runtime
-  uint32_t dim_duration_ms{0};        ///< Light: 0 = on/off only, >0 = brightness control
+  uint32_t open_duration_ms{0};   ///< Wall time closed→open, incl. tilt sweep (0 = no position tracking)
+  uint32_t close_duration_ms{0};  ///< Wall time open→closed, incl. tilt sweep
+  uint32_t tilt_duration_ms{0};   ///< Cover: slat sweep time (0 = no tilt estimation; v3 slot held deprecated poll_interval)
+  uint32_t dim_duration_ms{0};    ///< Light: 0 = on/off only, >0 = brightness control
 
   // Metadata (4 bytes)
   uint32_t updated_at{0};  ///< millis() when last persisted (0 = never)

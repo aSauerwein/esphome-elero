@@ -467,7 +467,7 @@ sequenceDiagram
         Reg->>FSM: dispatch_status_() -> on_rf_status()
         FSM->>FSM: state transition (variant swap)
         Reg->>Reg: poll.on_rf_received(now)
-        Reg->>Reg: tilt state tracking
+        Note over FSM: tilt updated inside the FSM<br/>(RF tilt bytes + movement phase)
         Note over Reg: notify_state_changed_(dev, now):<br/>compute snapshot → diff vs Published cache<br/>→ if changes == 0: skip (no adapter calls)<br/>→ else: update cache, set last_changes
         Reg->>Adapt: on_state_changed(dev, changes) -- only if diff != 0
     else command packet (0x6A)
@@ -521,8 +521,18 @@ flowchart TD
     enqueue STOP (0x6a)
     enqueue CHECK (0x6a)
     clear target_position"]
-    POS_CHECK -->|Not at target| CMD_Q
+    POS_CHECK -->|Not at target| TILT_CHECK
+
+    TILT_CHECK{"3b. tilt model active?
+    moving + has tilt_target?"}
+    TILT_CHECK -->|Tilt crossed target| TILT_STOP["clear_queue()
+    enqueue STOP (0x6a)
+    enqueue CHECK (0x6a)
+    clear tilt_target"]
+    TILT_CHECK -->|Not at target / no target| CMD_Q
+
     POS_STOP --> CMD_Q
+    TILT_STOP --> CMD_Q
 
     CMD_Q["4. sender.process_queue(now, hub)
     -> request_tx() -> tx_queue"]
@@ -557,26 +567,45 @@ flowchart TD
 
 ### Cover State Machine (`cover_sm`)
 
-The cover FSM uses variant-based states. Position is always **derived** from `(state, now, config)` -- never stored.
+The cover FSM uses variant-based states. Position and tilt are always **derived** from `(state, now, config)` -- never stored.
 
 | State | Description | Transitions |
 |-------|-------------|-------------|
-| `Idle` | Blind is stationary | -> `Opening` on UP, -> `Closing` on DOWN |
-| `Opening` | Blind is moving up | -> `Idle` on TOP/STOPPED/timeout, -> `Closing` on DOWN |
-| `Closing` | Blind is moving down | -> `Idle` on BOTTOM/STOPPED/timeout, -> `Opening` on UP |
+| `Idle` | Blind is stationary (carries `position` + `tilt`) | -> `Opening` on UP/TILT, -> `Closing` on DOWN |
+| `Opening` | Blind is moving up (carries `start_position`, `start_ms`, `start_tilt`) | -> `Idle` on TOP/STOPPED/timeout, -> `Closing` on DOWN |
+| `Closing` | Blind is moving down (carries `start_position`, `start_ms`, `start_tilt`) | -> `Idle` on BOTTOM/STOPPED/timeout, -> `Opening` on UP |
 | `Stopping` | Stop command sent, awaiting confirmation | -> `Idle` on STOPPED/timeout |
 
 Position calculation (derived on each loop tick):
 
 ```
-position = start_position + direction * (elapsed_ms / duration_ms)
+dead_time   = (opening ? (1 - start_tilt) : start_tilt) * tilt_duration_ms   [0 if tilt_duration_ms == 0]
+net_travel  = duration_ms - tilt_duration_ms                                  [wall-clock durations include the tilt sweep]
+travel_elapsed = max(0, elapsed_ms - dead_time)
+position    = start_position + direction * (travel_elapsed / net_travel)
+```
+
+Tilt is derived in parallel:
+
+```
+tilt = opening ? min(1, start_tilt + elapsed_ms / tilt_duration_ms)
+               : max(0, start_tilt - elapsed_ms / tilt_duration_ms)
 ```
 
 Where:
 - `direction` = +1.0 for opening, -1.0 for closing
 - `elapsed_ms` = `now - movement_started_at`
-- `duration_ms` = `open_duration` or `close_duration` from config
-- Result is clamped to [0.0, 1.0]
+- `duration_ms` = `open_duration_ms` or `close_duration_ms` from config (wall-clock, incl. tilt sweep)
+- `start_tilt` = tilt at the moment the move started (0.0 = slats closed, 1.0 = slats open)
+- Both results are clamped to [0.0, 1.0]
+
+**Tilt-before-lift:** venetian blinds rotate their slats before travelling.
+During the tilt phase position is FROZEN; travel advances only from the time
+remaining after the slat sweep. The dead time is the *remaining* sweep in the
+move direction — moves starting from open slats have zero dead time, direction
+reversals sweep the slats fully back first. With `tilt_duration_ms == 0` the
+model is off: no dead time, full duration as net travel, tilt reports the
+movement-direction extremes (legacy behavior).
 
 ### Light State Machine (`light_sm`)
 

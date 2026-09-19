@@ -19,11 +19,11 @@ const CONFIG = {
     freq: { freq0: '0x7a', freq1: '0x71', freq2: '0x21' },
   },
   blinds: [
-    { address: '0x313238', name: 'Terrasse',       channel: 2,  remote: '0x17a753', enabled: true, open_ms: 25000, close_ms: 25000, poll_ms: 300000, supports_tilt: false, updated_at: 1234567 },
-    { address: '0x313238', name: 'Terrasse',       channel: 3,  remote: '0x28b864', enabled: true, open_ms: 25000, close_ms: 25000, poll_ms: 300000, supports_tilt: false, updated_at: 1234567 },
-    { address: '0x333238', name: 'Lichthof OG',    channel: 7,  remote: '0x17a753', enabled: true, open_ms: 20000, close_ms: 20000, poll_ms: 300000, supports_tilt: true,  updated_at: 1234567 },
-    { address: '0x413238', name: 'Terrasse Küche', channel: 3,  remote: '0x28b864', enabled: true, open_ms: 30000, close_ms: 30000, poll_ms: 300000, supports_tilt: false, updated_at: 1234567 },
-    { address: '0x4d5748', name: 'Schlafzimmer',   channel: 33, remote: '0x28b864', enabled: true, open_ms: 22000, close_ms: 22000, poll_ms: 300000, supports_tilt: true,  updated_at: 1234567 },
+    { address: '0x313238', name: 'Terrasse',       channel: 2,  remote: '0x17a753', enabled: true, open_ms: 25000, close_ms: 25000, tilt_ms: 0, poll_ms: 300000, supports_tilt: false, updated_at: 1234567 },
+    { address: '0x313238', name: 'Terrasse',       channel: 3,  remote: '0x28b864', enabled: true, open_ms: 25000, close_ms: 25000, tilt_ms: 0, poll_ms: 300000, supports_tilt: false, updated_at: 1234567 },
+    { address: '0x333238', name: 'Lichthof OG',    channel: 7,  remote: '0x17a753', enabled: true, open_ms: 20000, close_ms: 20000, tilt_ms: 1500, poll_ms: 300000, supports_tilt: true,  updated_at: 1234567 },
+    { address: '0x413238', name: 'Terrasse Küche', channel: 3,  remote: '0x28b864', enabled: true, open_ms: 30000, close_ms: 30000, tilt_ms: 0, poll_ms: 300000, supports_tilt: false, updated_at: 1234567 },
+    { address: '0x4d5748', name: 'Schlafzimmer',   channel: 33, remote: '0x28b864', enabled: true, open_ms: 22000, close_ms: 22000, tilt_ms: 2000, poll_ms: 300000, supports_tilt: true,  updated_at: 1234567 },
   ],
   lights: [
     { address: '0xc41a2b', name: 'Gartenleuchte',  channel: 5, remote: '0x17a753', enabled: true, dim_ms: 0,    updated_at: 1234567 },

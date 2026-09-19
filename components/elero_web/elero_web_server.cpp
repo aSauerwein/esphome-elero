@@ -567,6 +567,7 @@ std::string EleroWebServer::build_config_json() {
         obj["remote"] = hex_str(dev.config.src_address);
         obj["open_ms"] = dev.config.open_duration_ms;
         obj["close_ms"] = dev.config.close_duration_ms;
+        obj["tilt_ms"] = dev.config.tilt_duration_ms;
         obj["supports_tilt"] = dev.config.supports_tilt != 0;
         obj["enabled"] = dev.config.is_enabled();
         obj["updated_at"] = dev.config.updated_at;
@@ -660,6 +661,7 @@ std::string EleroWebServer::build_device_upserted_json_(const Device &dev) {
     if (dev.config.is_cover()) {
       root["open_ms"] = dev.config.open_duration_ms;
       root["close_ms"] = dev.config.close_duration_ms;
+      root["tilt_ms"] = dev.config.tilt_duration_ms;
       root["supports_tilt"] = dev.config.supports_tilt != 0;
     }
     if (dev.config.is_light()) {
@@ -754,9 +756,20 @@ bool EleroWebServer::parse_device_config_(JsonObject root, NvsDeviceConfig &conf
     // Timing
     if (root["open_duration_ms"].is<uint32_t>()) config.open_duration_ms = root["open_duration_ms"].as<uint32_t>();
     if (root["close_duration_ms"].is<uint32_t>()) config.close_duration_ms = root["close_duration_ms"].as<uint32_t>();
+    if (root["tilt_duration_ms"].is<uint32_t>()) config.tilt_duration_ms = root["tilt_duration_ms"].as<uint32_t>();
 
     if (config.is_cover()) {
       config.supports_tilt = (root["supports_tilt"] | false) ? 1 : 0;
+
+      // Fail early: wall-time durations must leave room for the tilt sweep.
+      // tilt_duration beyond a travel duration makes position net time zero.
+      if (config.tilt_duration_ms > 0 &&
+          (config.open_duration_ms > 0 || config.close_duration_ms > 0) &&
+          (config.tilt_duration_ms >= config.open_duration_ms ||
+           config.tilt_duration_ms >= config.close_duration_ms)) {
+        error = "tilt_duration_ms must be smaller than open/close_duration_ms";
+        return false;
+      }
     }
     if (config.is_light()) {
       if (root["dim_duration_ms"].is<uint32_t>()) config.dim_duration_ms = root["dim_duration_ms"].as<uint32_t>();
@@ -964,6 +977,7 @@ void EleroWebServer::build_device_snapshot_(const NvsDeviceConfig &cfg, JsonObje
   if (cfg.is_cover()) {
     out["open_duration_ms"] = cfg.open_duration_ms;
     out["close_duration_ms"] = cfg.close_duration_ms;
+    out["tilt_duration_ms"] = cfg.tilt_duration_ms;
     out["supports_tilt"] = cfg.supports_tilt != 0;
     out["ha_device_class"] = cfg.ha_device_class;
   }

@@ -45,6 +45,11 @@ interface DeviceUpsertedData {
    */
   'close_ms'?: number;
   /**
+   * Slat tilt sweep duration in ms (covers only, 0 = tilt estimation disabled)
+   * @example 1500
+   */
+  'tilt_ms'?: number;
+  /**
    * Status poll interval in ms (covers only)
    * @example 300000
    */

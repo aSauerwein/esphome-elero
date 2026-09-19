@@ -26,7 +26,7 @@ CoverStateSnapshot compute_cover_snapshot(const Device &dev, uint32_t now) {
         .position = pos,
         .ha_state = ha_state,
         .operation = op,
-        .tilted = cover.tilted,
+        .tilt = cover_sm::tilt(cover.state, now, ctx),
         .is_problem = is_problem_state(dev.rf.last_state_raw),
         .problem_type = pt != nullptr ? pt : PROBLEM_TYPE_NONE,
         .rssi = dev.rf.last_rssi,
@@ -69,7 +69,8 @@ LightStateSnapshot compute_light_snapshot(const Device &dev, uint32_t now) {
 void CoverStateSnapshot::to_json(JsonObject obj) const {
     obj["position"] = position;
     obj["ha_state"] = ha_state;
-    obj["tilted"] = tilted;
+    obj["tilt"] = tilt;
+    obj["tilted"] = tilt > 0.5f;  // Legacy key, kept for web UI compatibility
     obj["is_problem"] = is_problem;
     obj["problem_type"] = problem_type;
     obj["rssi"] = round_rssi(rssi);
@@ -143,9 +144,10 @@ uint16_t diff_and_update_cover(const CoverStateSnapshot &snap, CoverDevice::Publ
         changes |= state_change::STATE_STRING;
         pub.state_string = snap.state_string;
     }
-    if (pub.tilted != snap.tilted) {
+    int tilt_pct = static_cast<int>(snap.tilt * PERCENT_SCALE);
+    if (pub.tilt_pct != tilt_pct) {
         changes |= state_change::TILT;
-        pub.tilted = snap.tilted;
+        pub.tilt_pct = tilt_pct;
     }
     if (pub.is_problem != snap.is_problem || pub.problem_type != snap.problem_type) {
         changes |= state_change::PROBLEM;

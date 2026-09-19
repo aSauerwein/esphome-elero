@@ -56,31 +56,35 @@ DEVICE_CLASS_MAP = {
     "garage": 5,
 }
 
-_TIME_RE = re.compile(r"^\s*(\d+)\s*(ms|s|min|h)?\s*$", re.IGNORECASE)
+_TIME_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*(ms|s|min|h)?\s*$", re.IGNORECASE)
 
 
 def parse_duration_ms(value: Any) -> int:
     """Parse an ESPHome time period (string or int) into milliseconds.
 
-    Accepts: int (ms), "500ms", "25s", "5min", "1h". Returns 0 for None / "0".
+    Accepts: int (ms), "500ms", "25s", "1.5s", "5min", "1h". Returns 0 for None / "0".
+    Fractional values are rounded to whole milliseconds.
     """
     if value is None:
         return 0
     if isinstance(value, int):
         return value
+    if isinstance(value, float):
+        return int(round(value))
     if not isinstance(value, str):
         raise ValueError(f"Unsupported duration value: {value!r}")
     m = _TIME_RE.match(value)
     if not m:
         raise ValueError(f"Cannot parse duration {value!r}")
-    n = int(m.group(1))
+    n = float(m.group(1))
     unit = (m.group(2) or "ms").lower()
-    return {
-        "ms": n,
-        "s": n * 1000,
-        "min": n * 60_000,
-        "h": n * 3_600_000,
+    factor = {
+        "ms": 1,
+        "s": 1000,
+        "min": 60_000,
+        "h": 3_600_000,
     }[unit]
+    return int(round(n * factor))
 
 
 def to_hex_address(value: Any) -> str:
@@ -117,6 +121,7 @@ def convert_cover(entry: dict[str, Any]) -> dict[str, Any]:
         "enabled": True,
         "open_duration_ms": parse_duration_ms(entry.get("open_duration", 0)),
         "close_duration_ms": parse_duration_ms(entry.get("close_duration", 0)),
+        "tilt_duration_ms": parse_duration_ms(entry.get("tilt_duration", 0)),
         "supports_tilt": bool(entry.get("supports_tilt", False)),
         "ha_device_class": DEVICE_CLASS_MAP.get(
             str(entry.get("device_class", "shutter")).lower(), 0

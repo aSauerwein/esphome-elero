@@ -101,6 +101,7 @@ export function sendUpsertDevice(device: Device) {
     enabled: device.enabled,
     open_duration_ms: device.open_ms,
     close_duration_ms: device.close_ms,
+    tilt_duration_ms: device.tilt_ms,
     supports_tilt: device.supports_tilt,
     dim_duration_ms: device.dim_ms,
   }

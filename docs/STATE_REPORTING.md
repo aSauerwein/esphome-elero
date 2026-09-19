@@ -19,7 +19,7 @@ How device state flows from RF packets through the firmware to Home Assistant en
 | Position | `cover` | `cover::Cover.position` (0.0–1.0) | `/position` (0–100) | **Consistent** — same snapshot, different scale |
 | Operation | `cover` | `COVER_OPERATION_*` enum | `/state` (opening/closing/open/closed/stopped) | **Consistent** — native maps enum, MQTT uses `ha_state` string |
 | Device class | `cover` | ESPHome traits | Discovery `device_class` + `/attributes` | **Consistent** |
-| Tilt | `cover` | `cover.tilt` (0.0/1.0) | `/tilt_state` (0/100) | **Consistent** — both binary via snapshot |
+| Tilt | `cover` | `cover.tilt` (0.0–1.0) | `/tilt_state` (0–100) | **Consistent** — continuous (0–100 %) when `tilt_duration_ms` is configured, direction extremes during moves otherwise |
 | RSSI | `sensor` | Not surfaced as an HA entity | Discovery `sensor/{id}_rssi` | **Gap** — see "Diagnostic sensors" below |
 | Blind State | `text_sensor` | Not surfaced as an HA entity | Discovery `sensor/{id}_state` | **Gap** |
 | Problem | `binary_sensor` | Not surfaced as an HA entity | Discovery `binary_sensor/{id}_problem` | **Gap** |
@@ -73,7 +73,7 @@ Computed by: compute_cover_snapshot(const Device &dev, uint32_t now)
 | `position` | `float` | `cover_sm::position(state, now, ctx)` | `cover.position` | `/position` topic | `config` event |
 | `ha_state` | `const char*` | `ha_cover_state_str(op, pos)` | — (uses `operation`) | `/state` topic | `config` event |
 | `operation` | `cover_sm::Operation` | `cover_sm::operation(state)` | `current_operation` enum | — (uses `ha_state`) | — |
-| `tilted` | `bool` | `CoverDevice::tilted` | `cover.tilt` | `/attributes` JSON | `config` event |
+| `tilt` | `float` | `cover_sm::tilt(state, now, ctx)` | `cover.tilt` | `/tilt_state` + `/attributes` JSON | `config` event |
 | `is_problem` | `bool` | `is_problem_state(rf.last_state_raw)` | hub sensor map | `/problem` topic | `config` event |
 | `problem_type` | `const char*` | `problem_type_str()` or `PROBLEM_TYPE_NONE` | shell text_sensor | `/attributes` JSON | — |
 | `rssi` | `float` | `rf.last_rssi` | hub sensor map | `/rssi` topic | `config` event |
@@ -136,7 +136,7 @@ The cover/light primary entity exposes the same derived values in both modes —
 |------|--------|---------------|
 | Cover position | `cover_sm::position()` | Both call `compute_cover_snapshot()` |
 | Cover operation/ha_state | `cover_sm::operation()` | Same snapshot |
-| Cover tilt | `CoverDevice::tilted` | Same flag, set in `dispatch_status_()` |
+| Cover tilt | `cover_sm::tilt()` | Same derived value (snapshot `tilt`), set from RF status bytes and movement phase |
 | Cover device_class | `NvsDeviceConfig::ha_device_class` | Same config field |
 | Light on/off | `light_sm::is_on()` | Both call `compute_light_snapshot()` |
 | Light brightness | `light_sm::brightness()` | Same snapshot |
@@ -195,7 +195,7 @@ DeviceRegistry::on_rf_packet()
   │
   │  4. dispatch_status_()
   │     → cover_sm / light_sm
-  │     → update tilted flag
+  │     → tilt derived in cover_sm (RF bytes + movement phase)
   │     → update last_command_source
   │     → changed?
   │
@@ -292,10 +292,10 @@ All topics are constructed via `MqttContext::topic(DeviceType, addr, mqtt_topic:
 | `{prefix}/cover/{addr}/rssi` | RSSI changes | `RSSI` | dBm (integer-rounded) |
 | `{prefix}/cover/{addr}/blind_state` | RF state byte changes | `STATE_STRING` | Raw RF state name (`"top"`, `"moving_up"`, etc.) |
 | `{prefix}/cover/{addr}/problem` | Problem state changes | `PROBLEM` | `"ON"` / `"OFF"` |
-| `{prefix}/cover/{addr}/attributes` | Command source, problem, or tilt changes | `COMMAND_SOURCE\|PROBLEM\|TILT` | JSON: `{command_source, tilted, device_class, problem_type}` |
-| `{prefix}/cover/{addr}/tilt_state` | Tilt changes (if tilt supported) | `TILT` | `"0"` / `"100"` |
+| `{prefix}/cover/{addr}/attributes` | Command source, problem, or tilt changes | `COMMAND_SOURCE\|PROBLEM\|TILT` | JSON: `{command_source, tilt, tilted, device_class, problem_type}` |
+| `{prefix}/cover/{addr}/tilt_state` | Tilt changes (if tilt supported) | `TILT` | `0`–`100` (continuous when `tilt_duration_ms` is set) |
 | `{prefix}/cover/{addr}/set` | Subscribed | — | `"open"` / `"close"` / `"stop"` |
-| `{prefix}/cover/{addr}/tilt` | Subscribed (if tilt) | — | Any payload triggers tilt |
+| `{prefix}/cover/{addr}/tilt` | Subscribed (if tilt) | — | Tilt target `0`–`100`: tilt-duration jog, else the motor's stored tilt favorite |
 
 ### Light topics
 
