@@ -810,7 +810,7 @@ components:
     BlindConfig:
       type: object
       additionalProperties: false
-      required: [address, name, channel, remote, open_ms, close_ms, poll_ms, supports_tilt, enabled]
+      required: [address, name, channel, remote, open_ms, close_ms, tilt_ms, poll_ms, supports_tilt, enabled]
       properties:
         address:
           type: string
@@ -839,6 +839,10 @@ components:
           type: integer
           description: Full close duration in milliseconds (0 = position tracking disabled)
           examples: [23000]
+        tilt_ms:
+          type: integer
+          description: Slat tilt sweep duration in milliseconds (0 = tilt estimation disabled)
+          examples: [1500]
         poll_ms:
           type: integer
           description: Status poll interval in milliseconds
@@ -1105,6 +1109,10 @@ components:
           type: integer
           description: Full close duration in ms (covers only)
           examples: [23000]
+        tilt_ms:
+          type: integer
+          description: Slat tilt sweep duration in ms (covers only, 0 = tilt estimation disabled)
+          examples: [1500]
         poll_ms:
           type: integer
           description: Status poll interval in ms (covers only)
@@ -1158,9 +1166,16 @@ components:
           description: Cover position (0.0 = closed, 1.0 = open). Cover only.
         ha_state:
           $ref: "#/components/schemas/HaCoverState"
+        tilt:
+          type: number
+          format: float
+          description: >-
+            Cover tilt (0.0 = slats closed, 1.0 = slats open). Cover only.
+            Continuous while tilt_duration is configured; direction-derived
+            (opening = open, closing = closed) otherwise.
         tilted:
           type: boolean
-          description: Whether the cover is tilted. Cover only.
+          description: Whether the cover is tilted (tilt > 50%). Cover only. Legacy key.
         device_class:
           type: string
           description: HA device class (shutter, blind, awning, etc.). Cover only.
@@ -1421,6 +1436,13 @@ components:
           type: integer
           description: Full close duration in milliseconds (cover only, 0 = position tracking disabled)
           examples: [23000]
+        tilt_duration_ms:
+          type: integer
+          description: >-
+            Slat tilt sweep duration in milliseconds (cover only,
+            0 = tilt estimation disabled; must be smaller than
+            open/close_duration_ms when position tracking is enabled)
+          examples: [1500]
         dim_duration_ms:
           type: integer
           description: Dim duration in milliseconds (light only, 0 = on/off only)
@@ -1681,6 +1703,13 @@ components:
           type: integer
           description: Cover close duration in ms (0 = position tracking disabled).
           examples: [22000]
+        tilt_duration_ms:
+          type: integer
+          description: >-
+            Cover slat tilt sweep duration in ms (0 = tilt estimation
+            disabled; must be smaller than open/close_duration_ms when
+            position tracking is enabled).
+          examples: [1500]
         dim_duration_ms:
           type: integer
           description: Light dim duration in ms (0 = on/off only).

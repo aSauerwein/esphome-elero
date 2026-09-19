@@ -71,6 +71,10 @@ elero_web:
 4. Save discovered devices in the web UI.
 5. (Optional) **Backup**: Hub → Backup & Restore → Download. Keep this JSON safe -- it's how you recover devices after flashing a replacement chip.
 
+### 4. Tune per-device settings
+
+Per-device fields (travel durations, tilt, HA device class, protocol bytes) are edited in the web UI -- see the [Configuration Reference](docs/CONFIGURATION.md). Venetian blinds with slat tilt: set `tilt_duration` to get position tracking that accounts for the tilt-before-lift phase and a continuous 0-100 % tilt slider in Home Assistant (see [Tilt model](docs/CONFIGURATION.md#tilt-model)).
+
 ### Migrating from older versions (YAML-defined devices)
 
 If you're upgrading from a version where devices were defined under `cover: - platform: elero` / `light: - platform: elero`, see [docs/MIGRATION-yaml-to-nvs.md](docs/MIGRATION-yaml-to-nvs.md). The TL;DR: run `uv run scripts/migrate_yaml_to_json.py old.yaml -o backup.json`, remove the `cover:` / `light:` blocks from YAML, flash, then upload the backup via the web UI.

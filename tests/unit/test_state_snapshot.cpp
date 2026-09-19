@@ -159,13 +159,24 @@ TEST(CoverSnapshot, NoProblemForNormalState) {
     EXPECT_STREQ(snap.problem_type, elero::PROBLEM_TYPE_NONE);
 }
 
-TEST(CoverSnapshot, TiltedFlag) {
+TEST(CoverSnapshot, TiltDerivedFromState) {
     auto dev = make_cover_device(sm::POSITION_OPEN, pkt::state::TOP_TILT);
     auto &cover = std::get<elero::CoverDevice>(dev.logic);
-    cover.tilted = true;
+    // RF TOP_TILT reports the blind at its stored tilt position
+    cover.state = sm::Idle{sm::POSITION_OPEN, sm::TILT_OPEN};
 
     auto snap = elero::compute_cover_snapshot(dev, 5000);
-    EXPECT_TRUE(snap.tilted);
+    EXPECT_FLOAT_EQ(snap.tilt, sm::TILT_OPEN);
+}
+
+TEST(CoverSnapshot, TiltDerivedDuringMovementWithoutDuration) {
+    auto dev = make_cover_device(sm::POSITION_OPEN, pkt::state::TOP);
+    auto &cover = std::get<elero::CoverDevice>(dev.logic);
+    // Without tilt_duration, movement reports direction extremes
+    cover.state = sm::Closing{sm::POSITION_OPEN, 5000};
+
+    auto snap = elero::compute_cover_snapshot(dev, 6000);
+    EXPECT_FLOAT_EQ(snap.tilt, sm::TILT_CLOSED);
 }
 
 TEST(CoverSnapshot, DeviceClassDefault) {

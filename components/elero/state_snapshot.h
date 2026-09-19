@@ -45,7 +45,7 @@ struct CoverStateSnapshot {
     float position;              ///< 0.0–1.0
     const char *ha_state;        ///< "open"/"closed"/"opening"/"closing"
     cover_sm::Operation operation;  ///< IDLE/OPENING/CLOSING
-    bool tilted;
+    float tilt;                  ///< 0.0 = slats closed, 1.0 = slats open
     bool is_problem;
     const char *problem_type;    ///< "blocking"/"overheated"/"timeout"/PROBLEM_TYPE_NONE
     float rssi;

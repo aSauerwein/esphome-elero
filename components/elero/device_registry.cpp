@@ -10,6 +10,8 @@
 #include "esphome/core/hal.h"
 #include <cstring>
 #include <cinttypes>
+#include <algorithm>
+#include <cmath>
 
 namespace esphome::elero {
 
@@ -89,6 +91,20 @@ void DeviceRegistry::update_hub_display_name_() {
                                                    : hub_name_override_;
 }
 
+bool DeviceRegistry::migrate_device_config_(NvsDeviceConfig &cfg, size_t slot_idx) {
+    // v3 → v4: the 4-byte slot that now holds tilt_duration_ms carried the
+    // deprecated (but user-set) poll_interval in v3. Zero it so stale poll
+    // values — typically minutes — don't become meaningless tilt durations.
+    if (cfg.version == 3) {
+        cfg.tilt_duration_ms = 0;
+        cfg.version = NVS_CONFIG_VERSION;
+        prefs_[slot_idx].save(&cfg);
+        ESP_LOGI(TAG, "Migrated NVS config of 0x%06" PRIx32 " v3 → v4 (slot %zu)",
+                 cfg.dst_address, slot_idx);
+    }
+    return cfg.is_valid();
+}
+
 void DeviceRegistry::restore_all() {
     if (!prefs_initialized_) {
         init_preferences();
@@ -97,7 +113,7 @@ void DeviceRegistry::restore_all() {
     size_t restored = 0;
     for (size_t i = 0; i < MAX_DEVICES; ++i) {
         NvsDeviceConfig cfg{};
-        if (prefs_[i].load(&cfg) && cfg.is_valid()) {
+        if (prefs_[i].load(&cfg) && migrate_device_config_(cfg, i)) {
             init_device(slots_[i], cfg);
             ++restored;
             ESP_LOGI(TAG, "Restored %s '%s' at 0x%06" PRIx32 " (slot %zu)",
@@ -317,6 +333,7 @@ void DeviceRegistry::command_cover(Device &dev, uint8_t cmd_byte) {
         (void) enqueue_check_(dev, "command_cover(stop)");
         cover.state = cover_sm::on_command(cover.state, cmd_byte, now, ctx);
         cover.target_position = cover_sm::NO_TARGET;
+        cover.tilt_target = cover_sm::NO_TARGET;
     } else {
         if (cmd_byte == packet::command::UP) cover.last_direction = cover_sm::Operation::OPENING;
         if (cmd_byte == packet::command::DOWN) cover.last_direction = cover_sm::Operation::CLOSING;
@@ -325,6 +342,7 @@ void DeviceRegistry::command_cover(Device &dev, uint8_t cmd_byte) {
                                             "command_cover(move)");
         (void) enqueue_check_(dev, "command_cover(move)");
         cover.state = cover_sm::on_command(cover.state, cmd_byte, now, ctx);
+        cover.tilt_target = cover_sm::NO_TARGET;  // Full move sweeps tilt to the extreme
         if (move_queued) {
             cover.poll.on_command_sent(now);
         }
@@ -359,6 +377,7 @@ void DeviceRegistry::set_cover_position(Device &dev, float target) {
                                         "set_cover_position");
     (void) enqueue_check_(dev, "set_cover_position");
     cover.state = cover_sm::on_command(cover.state, cmd, now, ctx);
+    cover.tilt_target = cover_sm::NO_TARGET;  // Position move sweeps tilt to the extreme
     if (cmd == packet::command::UP) cover.last_direction = cover_sm::Operation::OPENING;
     if (cmd == packet::command::DOWN) cover.last_direction = cover_sm::Operation::CLOSING;
     if (move_queued) {
@@ -381,7 +400,51 @@ void DeviceRegistry::command_cover_tilt(Device &dev) {
                                         "command_cover_tilt");
     (void) enqueue_check_(dev, "command_cover_tilt");
     cover.state = cover_sm::on_command(cover.state, packet::command::TILT, now, ctx);
+    cover.tilt_target = cover_sm::NO_TARGET;  // Favorite is motor-defined, not estimatable
     if (tilt_queued) {
+        cover.poll.on_command_sent(now);
+    }
+
+    notify_state_changed_(dev, now);
+}
+
+void DeviceRegistry::set_cover_tilt(Device &dev, float target) {
+    if (!dev.is_cover()) return;
+
+    auto &cover = std::get<CoverDevice>(dev.logic);
+    auto ctx = cover_context(dev.config);
+    uint32_t now = millis();
+
+    // Without a calibrated tilt duration we cannot estimate tilt travel, so
+    // fall back to the motor's stored tilt-favorite command (legacy behavior).
+    if (!cover_sm::has_tilt_tracking(ctx)) {
+        command_cover_tilt(dev);
+        return;
+    }
+
+    target = std::clamp(target, cover_sm::TILT_CLOSED, cover_sm::TILT_OPEN);
+    float current = cover_sm::tilt(cover.state, now, ctx);
+    float delta = target - current;
+
+    // Minimum motor pulse: shorter jogs don't move the slats at all
+    // (Tasmota documents the same 0.2 s physical limit).
+    constexpr float MIN_TILT_PULSE_MS = 200.0f;
+    if (std::fabs(delta) * static_cast<float>(ctx.tilt_duration_ms) < MIN_TILT_PULSE_MS) {
+        ESP_LOGD(TAG, "set_cover_tilt: delta %.2f below min pulse, ignoring", static_cast<double>(delta));
+        return;
+    }
+
+    uint8_t cmd = (delta > 0.0f) ? packet::command::UP : packet::command::DOWN;
+    bool jog_queued = enqueue_or_warn_(dev, cmd, packet::button::PACKETS,
+                                       packet::msg_type::BUTTON,
+                                       "set_cover_tilt");
+    (void) enqueue_check_(dev, "set_cover_tilt");
+    cover.state = cover_sm::on_command(cover.state, cmd, now, ctx);
+    cover.tilt_target = target;
+    cover.target_position = cover_sm::NO_TARGET;
+    if (cmd == packet::command::UP) cover.last_direction = cover_sm::Operation::OPENING;
+    if (cmd == packet::command::DOWN) cover.last_direction = cover_sm::Operation::CLOSING;
+    if (jog_queued) {
         cover.poll.on_command_sent(now);
     }
 
@@ -535,10 +598,12 @@ void DeviceRegistry::command_group(Device *const *devices, size_t count, uint8_t
             if (cmd_byte == packet::command::STOP) {
                 cover.state = cover_sm::on_command(cover.state, cmd_byte, now, ctx);
                 cover.target_position = cover_sm::NO_TARGET;
+                cover.tilt_target = cover_sm::NO_TARGET;
             } else {
                 if (cmd_byte == packet::command::UP) cover.last_direction = cover_sm::Operation::OPENING;
                 if (cmd_byte == packet::command::DOWN) cover.last_direction = cover_sm::Operation::CLOSING;
                 cover.state = cover_sm::on_command(cover.state, cmd_byte, now, ctx);
+                cover.tilt_target = cover_sm::NO_TARGET;  // Full move sweeps tilt to the extreme
                 cover.poll.on_command_sent(now);
             }
         } else if (devices[i]->is_light()) {
@@ -681,20 +746,8 @@ void DeviceRegistry::dispatch_status_(Device &dev, uint8_t state_byte, uint32_t 
             auto ctx = cover_context(dev.config);
             cover.state = cover_sm::on_rf_status(cover.state, state_byte, now, ctx);
             cover.poll.on_rf_received(now);
-
-            // Track tilt state from RF
-            if (state_byte == packet::state::TILT ||
-                state_byte == packet::state::TOP_TILT ||
-                state_byte == packet::state::BOTTOM_TILT) {
-                cover.tilted = true;
-            } else if (state_byte == packet::state::TOP ||
-                       state_byte == packet::state::BOTTOM ||
-                       state_byte == packet::state::MOVING_UP ||
-                       state_byte == packet::state::MOVING_DOWN ||
-                       state_byte == packet::state::START_MOVING_UP ||
-                       state_byte == packet::state::START_MOVING_DOWN) {
-                cover.tilted = false;
-            }
+            // Tilt is derived inside the cover state machine from RF status
+            // bytes and movement phase — no separate tracking needed here.
         },
         [&](LightDevice &light) {
             auto ctx = light_context(dev.config);
@@ -825,6 +878,30 @@ void DeviceRegistry::loop_cover_(Device &dev, CoverDevice &cover, uint32_t now) 
             cover.state = cover_sm::on_command(cover.state, packet::command::STOP, now, ctx);
             state_type_changed = true;
             cover.target_position = cover_sm::NO_TARGET;  // Clear target
+        }
+    }
+
+    // 4b. Tilt jog stop — a tilt-only move must stop when the derived tilt
+    //     crosses its target. Thanks to tilt-before-lift, the blind itself
+    //     does not travel during the tilt phase, so position stays untouched.
+    if (moving && cover_sm::has_tilt_tracking(ctx) && cover.tilt_target >= cover_sm::TILT_CLOSED) {
+        float t = cover_sm::tilt(cover.state, now, ctx);
+        bool tilt_at_target = false;
+        if (std::holds_alternative<cover_sm::Opening>(cover.state)) {
+            tilt_at_target = t >= cover.tilt_target;
+        } else if (std::holds_alternative<cover_sm::Closing>(cover.state)) {
+            tilt_at_target = t <= cover.tilt_target;
+        }
+        if (tilt_at_target) {
+            dev.sender.clear_queue();
+            (void) enqueue_or_warn_(dev, packet::command::STOP,
+                                    packet::button::PACKETS,
+                                    packet::msg_type::COMMAND,
+                                    "loop_cover(tilt_stop)");
+            (void) enqueue_check_(dev, "loop_cover(tilt_stop)");
+            cover.state = cover_sm::on_command(cover.state, packet::command::STOP, now, ctx);
+            state_type_changed = true;
+            cover.tilt_target = cover_sm::NO_TARGET;  // Clear target
         }
     }
 

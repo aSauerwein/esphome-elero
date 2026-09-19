@@ -29,7 +29,13 @@ interface StateChangedData {
    */
   'ha_state'?: HaCoverState;
   /**
-   * Whether the cover is tilted. Cover only.
+   * Cover tilt (0.0 = slats closed, 1.0 = slats open). Cover only.
+   * Continuous while tilt_duration is configured; direction-derived
+   * (opening = open, closing = closed) otherwise.
+   */
+  'tilt'?: number;
+  /**
+   * Whether the cover is tilted (tilt > 50%). Cover only. Legacy key.
    */
   'tilted'?: boolean;
   /**

@@ -105,7 +105,7 @@ class EspCoverShell : public cover::Cover, public Component {
     }
 
     if (call.get_tilt().has_value()) {
-      registry_->command_cover_tilt(*device_);
+      registry_->set_cover_tilt(*device_, *call.get_tilt());
       return;
     }
 
@@ -133,7 +133,7 @@ class EspCoverShell : public cover::Cover, public Component {
                    state_change::OPERATION | state_change::TILT)) {
       this->position = static_cast<float>(pub.position_pct) / PERCENT_SCALE;
       if (device_->config.supports_tilt != 0) {
-        this->tilt = pub.tilted ? cover_sm::POSITION_OPEN : cover_sm::POSITION_CLOSED;
+        this->tilt = static_cast<float>(pub.tilt_pct) / PERCENT_SCALE;
       }
       switch (pub.operation) {
         case cover_sm::Operation::IDLE:

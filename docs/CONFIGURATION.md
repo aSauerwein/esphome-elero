@@ -125,9 +125,10 @@ and edited via the web UI's device editor. Fields marked **(cover)** and
 | `channel` | Integer (0-255) | required | RF channel |
 | `name` | String (≤23 chars) | empty | Display name in HA |
 | `enabled` | Boolean | `true` | Whether the device is published to HA |
-| `open_duration_ms` | Integer | `0` | **(cover)** Travel time fully open. `0` = no position tracking. |
-| `close_duration_ms` | Integer | `0` | **(cover)** Travel time fully closed. Pair with `open_duration_ms`. |
-| `supports_tilt` | Boolean | `false` | **(cover)** Tilt-capable blind |
+| `open_duration_ms` | Integer | `0` | **(cover)** Wall-clock time fully closed→open (slats included). `0` = no position tracking. |
+| `close_duration_ms` | Integer | `0` | **(cover)** Wall-clock time fully open→closed (slats included). Pair with `open_duration_ms`. |
+| `tilt_duration_ms` | Integer | `0` | **(cover)** Slat sweep time (see [Tilt model](#tilt-model)). `0` = tilt estimation off. Must be < both durations. |
+| `supports_tilt` | Boolean | `false` | **(cover)** Exposes tilt controls in HA |
 | `ha_device_class` | Enum | `shutter` | **(cover)** `shutter`/`blind`/`awning`/`curtain`/`shade`/`garage` |
 | `dim_duration_ms` | Integer | `0` | **(light)** Dimming travel. `0` = on/off only. |
 | `hop` | Hex byte | `0x0a` | Protocol hop counter |
@@ -139,6 +140,47 @@ and edited via the web UI's device editor. Fields marked **(cover)** and
 The protocol bytes (`hop`, `payload_*`, `msg_type`, `type2`) are rarely
 overridden — defaults match every Elero motor seen in the wild. Only
 touch them if you've sniffed an unusual remote and confirmed it differs.
+
+## Tilt model
+
+Most Elero venetian blinds rotate their slats **before** the blind travels
+("tilt before lift"): pressing UP first sweeps the slats open, only then
+does the fabric rise; DOWN tilts the slats closed before descending.
+`tilt_duration_ms` enables an estimator that models this phase.
+
+Semantics (embedded-phase model, same as Tasmota `ShutterTiltConfig`,
+Shelly slats and bruxy70/Venetian-Blinds-Control):
+
+- `tilt` is derived (never stored) from `(state, now, tilt_duration)`:
+  `0.0` = slats closed, `1.0` = slats open, reported continuously to HA.
+- **Position is frozen during the tilt phase.** The dead time for a move
+  equals the *remaining slat sweep* in the move direction — starting a
+  move from open slats has zero dead time, reversing direction sweeps
+  the slats all the way back first (mechanical backlash included for free).
+- `open_duration_ms`/`close_duration_ms` are **wall-clock** durations:
+  measure from fully closed (slats closed) to fully open with a stopwatch.
+  The estimator subtracts `tilt_duration_ms` to get net travel time, so
+  intermediate positions interpolate correctly from *any* start tilt.
+- **Tilt-only moves:** setting a tilt target sends a short UP/DOWN jog and
+  auto-stops when the derived tilt crosses the target. Because of
+  tilt-before-lift this never moves the blind itself. Jog changes below
+  ~200 ms of motor runtime are ignored (the motor can't do them) — with a
+  2 s sweep that's ~10 % granularity.
+- **RF re-sync:** `TOP`/`BOTTOM`/`TOP_TILT`/`BOTTOM_TILT`/`TILT` status
+  bytes snap tilt (and position) to known values. After drift, a full
+  open/close re-syncs the estimate.
+- With `tilt_duration_ms = 0` the legacy behavior applies: HA tilt
+  commands send the motor's stored tilt-favorite command (`0x24`) and
+  tilt reports the movement direction extremes during travel.
+
+Recommended calibration:
+
+1. Set `supports_tilt` on, leave `tilt_duration_ms = 0` initially.
+2. Stop the blind mid-travel, tilt slats closed, and time one full
+   slat sweep with a stopwatch (typically 0.8–2.5 s). Enter it as
+   `tilt_duration_ms`.
+3. Measure full open/close wall time from the fully closed state
+   (slats closed) and set the durations.
 
 ---
 

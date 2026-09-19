@@ -99,6 +99,7 @@ class TestConvertCover:
         assert out["type2"] == "0x00"
         assert out["open_duration_ms"] == 0
         assert out["close_duration_ms"] == 0
+        assert out["tilt_duration_ms"] == 0
         assert out["supports_tilt"] is False
         assert out["ha_device_class"] == 0  # shutter
 
@@ -107,6 +108,11 @@ class TestConvertCover:
         out = mig.convert_cover(entry)
         assert out["open_duration_ms"] == 25_000
         assert out["close_duration_ms"] == 22_000
+
+    def test_tilt_duration_parsed(self):
+        entry = _minimal_cover() | {"supports_tilt": True, "tilt_duration": "1.5s"}
+        out = mig.convert_cover(entry)
+        assert out["tilt_duration_ms"] == 1_500
 
     def test_supports_tilt_and_class(self):
         entry = _minimal_cover() | {"supports_tilt": True, "device_class": "blind"}

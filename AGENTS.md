@@ -161,6 +161,7 @@ Additional migrated agent docs live in `.pi/reference/`.
 - **SPI conflicts:** The CC1101 CS pin must not be shared with another SPI device.
 - **`web_server:` vs `web_server_base:`:** Use `web_server_base:` for `/elero` only. Adding `web_server:` re-enables the default ESPHome UI.
 - **Position tracking:** Leave `open_duration` and `close_duration` at `0s` if you only need open/close.
+- **Tilt calibration:** `tilt_duration_ms` activates the tilt-before-lift position model. Durations are WALL-TIME (stopwatch from fully closed, slats closed) and the estimator subtracts `tilt_duration_ms` as net travel. Config with `tilt_duration_ms >= open/close_duration_ms` is rejected. `tilt_duration_ms = 0` keeps legacy behavior (RF TILT favorite command, direction-extreme tilt reports).
 
 ---
 

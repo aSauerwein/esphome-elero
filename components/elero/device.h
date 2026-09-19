@@ -38,11 +38,11 @@ struct RfMeta {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 struct CoverDevice {
-    cover_sm::State state{cover_sm::Idle{}}; ///< Default Idle{0.5} = unknown at boot
+    cover_sm::State state{cover_sm::Idle{}}; ///< Default Idle{0.5, 0.5} = unknown at boot
     PollTimer       poll;
     float           target_position{cover_sm::NO_TARGET};  ///< NO_TARGET = no target, 0..1 = intermediate target
+    float           tilt_target{cover_sm::NO_TARGET};      ///< NO_TARGET = no target, 0..1 = tilt jog target
     cover_sm::Operation last_direction{cover_sm::Operation::OPENING};  ///< For toggle logic
-    bool            tilted{false};
 
     /// Last-published state cache. Registry diffs against this to detect changes.
     /// Defaults guarantee non-zero diff on first publish.
@@ -51,7 +51,7 @@ struct CoverDevice {
         const char *ha_state{nullptr};
         cover_sm::Operation operation{cover_sm::Operation::IDLE};
         const char *state_string{nullptr};
-        bool tilted{false};
+        int tilt_pct{-1};
         bool is_problem{false};
         const char *problem_type{nullptr};
         int rssi_rounded{-999};
@@ -128,10 +128,16 @@ struct Device {
 // CONTEXT BUILDERS
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/// Wall-time durations include the tilt sweep; tilt_duration is subtracted at
+/// runtime as direction-dependent dead time (see cover_sm.h tilt model).
 inline cover_sm::Context cover_context(const NvsDeviceConfig &cfg) {
-    return {cfg.open_duration_ms, cfg.close_duration_ms,
-            packet::timing::TIMEOUT_MOVEMENT,
-            packet::timing::POST_STOP_COOLDOWN_MS};
+    return cover_sm::Context{
+        .open_duration_ms = cfg.open_duration_ms,
+        .close_duration_ms = cfg.close_duration_ms,
+        .tilt_duration_ms = cfg.tilt_duration_ms,
+        .movement_timeout_ms = packet::timing::TIMEOUT_MOVEMENT,
+        .post_stop_cooldown_ms = packet::timing::POST_STOP_COOLDOWN_MS,
+    };
 }
 
 inline light_sm::Context light_context(const NvsDeviceConfig &cfg) {

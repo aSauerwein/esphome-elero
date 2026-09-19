@@ -100,6 +100,7 @@ Adapters react automatically:
       "enabled": true,
       "open_duration_ms": 25000,
       "close_duration_ms": 22000,
+      "tilt_duration_ms": 1500,
       "supports_tilt": true,
       "ha_device_class": 0,
       "hop": "0x0a",
