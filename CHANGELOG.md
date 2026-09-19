@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.1](https://github.com/aSauerwein/esphome-elero/compare/v0.11.0...v0.11.1) (2026-09-19)
+
+
+### Bug Fixes
+
+* download web UI header from release assets ([3ba7074](https://github.com/aSauerwein/esphome-elero/commit/3ba70742dca94653e477eaa1aaa8539c06c08dc9))
+* download web UI header from release assets ([#2](https://github.com/aSauerwein/esphome-elero/issues/2)) ([996dd30](https://github.com/aSauerwein/esphome-elero/commit/996dd30847a728fb2651692b1a0580a4b2b2dce7))
+
 ## [0.11.0](https://github.com/aSauerwein/esphome-elero/compare/v0.10.0...v0.11.0) (2026-09-19)
 
 
