@@ -33,12 +33,11 @@ pnpm build
 ```
 
 This generates `components/elero_web/elero_web_ui.h` from this checkout's
-frontend. Commit the updated header together with frontend updates. The
-upstream `v0.9.0` release asset referenced by this checkout was unavailable
-during testing, so direct installs use the included header. If the header
-is absent, the component attempts the matching release download and stops during
-code generation with the download URL and recovery command if it cannot
-obtain the matching header. Failed downloads are not cached.
+frontend. That file is git-ignored; at build time the component downloads the
+header matching the current version from the `aSauerwein/esphome-elero` release
+assets. If the header is absent and the download fails, code generation stops
+with the download URL and a recovery command. Failed downloads are not cached,
+so a local `pnpm build` always takes precedence.
 
 Use [`configs/config.lilygo-lora32-api-nvs.yaml`](../configs/config.lilygo-lora32-api-nvs.yaml).
 Create `configs/secrets.yaml` locally with `wifi_ssid` and `wifi_password`.
