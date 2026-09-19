@@ -46,7 +46,7 @@ jobs:
     name: ESPHome Compile (${{ matrix.test }})
     runs-on: ubuntu-latest
     needs: build-frontend
-    container: ghcr.io/esphome/esphome:2026.2.2
+    container: ghcr.io/esphome/esphome:2026.8.2
     strategy:
       fail-fast: false
       matrix:
@@ -57,6 +57,7 @@ jobs:
           - test.esp32-minimal
           - test.esp32-mqtt
           - test.esp32-nvs
+          - test.esp32-sx1276-idf
     steps:
       - uses: actions/checkout@v4
 
@@ -99,6 +100,16 @@ jobs:
           name: Unit Test Results
           path: build/test-results.xml
           reporter: java-junit
+
+  python-tests:
+    name: Python Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - run: uv run --frozen pytest tests/python/
 
   # Python code validation (formatting removed - not enforced)
   python-lint:
